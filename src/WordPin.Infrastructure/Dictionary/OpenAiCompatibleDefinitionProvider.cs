@@ -19,6 +19,8 @@ public sealed class OpenAiCompatibleDefinitionProvider : ILanguageModelDefinitio
 
     public LlmSettings Settings => settingsStore.Load();
 
+    public int DailyLimit => Math.Clamp(Settings.DailyLimit, 1, 500);
+
     public bool IsConfigured
     {
         get

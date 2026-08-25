@@ -37,7 +37,7 @@
                     Click="ImportDictionaryButton_Click"
                     Content="导入 CSV 词典" />
             <Button Click="LlmSettingsButton_Click"
-                    Content="AI 设置" />
+                    Content="释义设置" />
         </StackPanel>
 
         <Border Grid.Row="3"
@@ -70,12 +70,12 @@
                     <Button x:Name="AcceptAiButton"
                             Margin="8,0,0,0"
                             Click="AcceptAiButton_Click"
-                            Content="采用 AI 释义"
+                            Content="采用远程释义"
                             Visibility="Collapsed" />
                     <Button x:Name="RetryAiButton"
                             Margin="8,0,0,0"
                             Click="RetryAiButton_Click"
-                            Content="重新生成"
+                            Content="重新查询"
                             Visibility="Collapsed" />
                 </StackPanel>
             </StackPanel>

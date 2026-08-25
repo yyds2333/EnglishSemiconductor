@@ -16,6 +16,10 @@ public partial class LlmSettingsWindow : Window
         ModelTextBox.Text = current.Model;
         DailyLimitTextBox.Text = current.DailyLimit.ToString(System.Globalization.CultureInfo.InvariantCulture);
         SendContextCheckBox.IsChecked = current.SendContext;
+        OnlineTranslationEnabledCheckBox.IsChecked = current.OnlineTranslationEnabled;
+        OnlineMachineTranslationCheckBox.IsChecked = current.OnlineMachineTranslationEnabled;
+        OnlineTranslationDailyLimitTextBox.Text = current.OnlineTranslationDailyLimit
+            .ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     public LlmSettings? Settings { get; private set; }
@@ -40,6 +44,17 @@ public partial class LlmSettingsWindow : Window
             return;
         }
 
+        if (!int.TryParse(
+                OnlineTranslationDailyLimitTextBox.Text,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var onlineTranslationDailyLimit)
+            || onlineTranslationDailyLimit is < 1 or > 500)
+        {
+            ValidationTextBlock.Text = "联网翻译每日请求次数必须是 1 到 500 之间的整数。";
+            return;
+        }
+
         var key = string.IsNullOrWhiteSpace(ApiKeyPasswordBox.Password)
             ? current.ApiKey
             : ApiKeyPasswordBox.Password.Trim();
@@ -61,7 +76,10 @@ public partial class LlmSettingsWindow : Window
             Model: ModelTextBox.Text.Trim(),
             ApiKey: key,
             DailyLimit: dailyLimit,
-            SendContext: SendContextCheckBox.IsChecked == true);
+            SendContext: SendContextCheckBox.IsChecked == true,
+            OnlineTranslationEnabled: OnlineTranslationEnabledCheckBox.IsChecked == true,
+            OnlineMachineTranslationEnabled: OnlineMachineTranslationCheckBox.IsChecked == true,
+            OnlineTranslationDailyLimit: onlineTranslationDailyLimit);
         DialogResult = true;
     }
 

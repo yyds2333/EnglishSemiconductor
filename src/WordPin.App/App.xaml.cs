@@ -11,6 +11,7 @@ public partial class App : System.Windows.Application, IDisposable
     private SqliteLearningDatabase? database;
     private SqliteDictionaryStore? dictionaryStore;
     private SqliteDictionaryImportService? dictionaryImportService;
+    private MyMemoryTranslationProvider? translationProvider;
     private OpenAiCompatibleDefinitionProvider? languageModelProvider;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -30,11 +31,13 @@ public partial class App : System.Windows.Application, IDisposable
         var repository = new SqliteWordRepository(database);
         var queueService = new SqliteStudyQueueService(database);
         var llmSettingsStore = new DpapiLlmSettingsStore(dataDirectory);
+        translationProvider = new MyMemoryTranslationProvider(llmSettingsStore);
         languageModelProvider = new OpenAiCompatibleDefinitionProvider(llmSettingsStore);
         var usageStore = new SqliteLlmUsageStore(database);
         var definitionResolver = new DefinitionResolver(
             repository,
             dictionaryStore,
+            translationProvider,
             languageModelProvider,
             usageStore);
         var window = new MainWindow(
@@ -61,6 +64,8 @@ public partial class App : System.Windows.Application, IDisposable
         dictionaryStore = null;
         dictionaryImportService?.Dispose();
         dictionaryImportService = null;
+        translationProvider?.Dispose();
+        translationProvider = null;
         languageModelProvider?.Dispose();
         languageModelProvider = null;
         database?.DisposeAsync().AsTask().GetAwaiter().GetResult();
