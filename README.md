@@ -16,7 +16,8 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 ## 文档
 
 - [项目实施规划书](docs/specifications/WordPin_项目实施规划书_v1.0.md)
-- [产品与开发规格书 v1.0](docs/specifications/WordPin_Windows单词学习工具_产品与开发规格书_v1.0.md)
+- [产品与开发规格书 v1.1](docs/specifications/WordPin_Windows单词学习工具_产品与开发规格书_v1.1.md)
+- [需求—验收追踪表 v1.1](docs/specifications/需求—验收追踪表_v1.1.md)
 - [ADR-001：平台与发布架构](docs/adr/ADR-001-平台与发布架构.md)
 - [ADR-002：工程技术栈](docs/adr/ADR-002-工程技术栈.md)
 - [当前状态](docs/STATUS.md)
