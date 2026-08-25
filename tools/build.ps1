@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch]$Publish,
-    [switch]$Test
+    [switch]$Test,
+    [switch]$Installer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,7 +36,7 @@ if ($Test) {
         --logger "console;verbosity=normal"
 }
 
-if ($Publish) {
+if ($Publish -or $Installer) {
     $publishRoot = Join-Path $repoRoot 'artifacts\publish\win-x64'
     dotnet publish (Join-Path $repoRoot 'src\WordPin.App\WordPin.App.csproj') `
         --configuration Release `
@@ -45,4 +46,16 @@ if ($Publish) {
         --output $publishRoot
 
     Write-Host "Published: $publishRoot"
+}
+
+if ($Installer) {
+    $iscc = Get-Command iscc.exe -ErrorAction SilentlyContinue
+    if ($null -eq $iscc) {
+        throw "Inno Setup compiler (iscc.exe) was not found. Install Inno Setup 6 x64, then rerun .\tools\build.ps1 -Installer."
+    }
+
+    & $iscc.Source (Join-Path $repoRoot 'installer\WordPin.iss')
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup failed with exit code $LASTEXITCODE."
+    }
 }

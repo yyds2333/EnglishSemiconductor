@@ -51,7 +51,10 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 .\tools\build.ps1
 .\tools\build.ps1 -Test
 .\tools\build.ps1 -Publish
+.\tools\build.ps1 -Installer
 ```
+
+`-Installer` 会先生成 `win-x64` 自包含发布目录，再调用 Inno Setup 6 的 `iscc.exe` 生成 per-user 安装包；安装器未安装时命令会明确失败并提示安装依赖。
 
 发布完成后运行 `artifacts\publish\win-x64\WordPin.exe`。当前窗口始终置顶，支持 `Ctrl+Shift+D`（先复制、后按快捷键）主动读取剪贴板，或手动输入并立即保存到 `%LOCALAPPDATA%\WordPin\wordpin.db`；应用不会持续监听剪贴板。每次保存后提供 5 秒撤销，并从 `%LOCALAPPDATA%\WordPin\dictionary\dictionary.db` 读取本地释义。
 
