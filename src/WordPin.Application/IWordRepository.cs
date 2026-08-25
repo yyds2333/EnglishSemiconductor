@@ -2,7 +2,7 @@ using WordPin.Domain;
 
 namespace WordPin.Application;
 
-public interface IWordRepository
+public interface IWordRepository : IDefinitionRepository
 {
     Task<WordCaptureResult> CaptureAsync(
         NewWordCapture capture,

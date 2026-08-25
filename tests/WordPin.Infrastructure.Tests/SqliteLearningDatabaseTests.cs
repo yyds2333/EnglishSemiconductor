@@ -19,8 +19,8 @@ public sealed class SqliteLearningDatabaseTests
                 await using (var connection = await database.OpenConnectionAsync())
                 await using (var command = connection.CreateCommand())
                 {
-                    command.CommandText = "SELECT version FROM schema_migrations;";
-                    Assert.Equal(1L, await command.ExecuteScalarAsync());
+                    command.CommandText = "SELECT MAX(version) FROM schema_migrations;";
+                    Assert.Equal(3L, await command.ExecuteScalarAsync());
 
                     command.CommandText = "PRAGMA foreign_keys;";
                     Assert.Equal(1L, await command.ExecuteScalarAsync());

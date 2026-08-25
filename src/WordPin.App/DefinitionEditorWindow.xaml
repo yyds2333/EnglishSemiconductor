@@ -1,0 +1,81 @@
+<Window x:Class="WordPin.App.DefinitionEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="编辑释义"
+        Width="500"
+        Height="430"
+        MinWidth="420"
+        MinHeight="360"
+        ResizeMode="CanResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="TermTextBlock"
+                   FontSize="22"
+                   FontWeight="SemiBold" />
+        <TextBlock Grid.Row="1"
+                   Margin="0,8,0,4"
+                   Text="中文释义（至少填写中文或英文释义之一）" />
+        <TextBox x:Name="ChineseDefinitionTextBox"
+                 Grid.Row="2"
+                 MinHeight="58"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto" />
+        <Grid Grid.Row="3" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="英文释义" />
+                <TextBox x:Name="EnglishDefinitionTextBox"
+                         Margin="0,4,0,0"
+                         MinHeight="48"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="词性" />
+                <TextBox x:Name="PartOfSpeechTextBox"
+                         Margin="0,4,0,0"
+                         MinHeight="32" />
+            </StackPanel>
+        </Grid>
+        <StackPanel Grid.Row="4" Margin="0,10,0,0">
+            <TextBlock Text="例句（可选）" />
+            <TextBox x:Name="ExampleTextBox"
+                     Margin="0,4,0,0"
+                     MinHeight="80"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" />
+            <TextBlock x:Name="ValidationTextBlock"
+                       Margin="0,8,0,0"
+                       Foreground="IndianRed"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Row="5"
+                    Margin="0,16,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Width="80"
+                    Margin="0,0,8,0"
+                    Click="CancelButton_Click"
+                    Content="取消" />
+            <Button Width="80"
+                    Click="SaveButton_Click"
+                    Content="保存"
+                    IsDefault="True" />
+        </StackPanel>
+    </Grid>
+</Window>

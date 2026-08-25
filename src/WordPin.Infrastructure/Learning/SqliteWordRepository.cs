@@ -162,6 +162,147 @@ public sealed class SqliteWordRepository : IWordRepository
         return new ReviewResult(updatedWord, evaluation);
     }
 
+    public async Task<IReadOnlyList<SavedDefinition>> GetForWordAsync(
+        Guid wordId,
+        CancellationToken cancellationToken = default)
+    {
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT id, word_id, part_of_speech, definition_zh, definition_en, example,
+                   sort_order, source_kind, status, source_detail, model_name,
+                   prompt_version, generated_at, confirmed_at, created_at, updated_at
+            FROM definitions
+            WHERE word_id = $word_id
+              AND status <> 'rejected'
+            ORDER BY
+                CASE source_kind WHEN 'manual' THEN 0 WHEN 'llm' THEN 1 ELSE 2 END,
+                CASE status WHEN 'accepted' THEN 0 WHEN 'proposed' THEN 1 ELSE 2 END,
+                sort_order ASC,
+                created_at ASC;
+            """;
+        command.Parameters.AddWithValue("$word_id", wordId.ToString("D"));
+
+        var definitions = new List<SavedDefinition>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            definitions.Add(ReadDefinition(reader));
+        }
+
+        return definitions;
+    }
+
+    public async Task<SavedDefinition> SaveAsync(
+        DefinitionDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (string.IsNullOrWhiteSpace(draft.DefinitionZh) && string.IsNullOrWhiteSpace(draft.DefinitionEn))
+        {
+            throw new ArgumentException("A Chinese or English definition is required.", nameof(draft));
+        }
+
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var now = DateTimeOffset.UtcNow;
+        var id = draft.ExistingId ?? Guid.NewGuid();
+        var existing = draft.ExistingId is null
+            ? null
+            : await LoadDefinitionAsync(connection, transaction, draft.ExistingId.Value, cancellationToken)
+                .ConfigureAwait(false);
+
+        if (draft.ExistingId is not null && existing is null)
+        {
+            throw new KeyNotFoundException($"Definition not found: {draft.ExistingId.Value}");
+        }
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = existing is null
+            ? """
+              INSERT INTO definitions (
+                  id, word_id, part_of_speech, definition_zh, definition_en, example,
+                  sort_order, provider, source_kind, status, source_detail, model_name,
+                  prompt_version, generated_at, confirmed_at, created_at, updated_at)
+              VALUES ($id, $word_id, $part_of_speech, $definition_zh, $definition_en, $example,
+                      $sort_order, $provider, $source_kind, $status, $source_detail, $model_name,
+                      $prompt_version, $generated_at, $confirmed_at, $created_at, $updated_at);
+              """
+            : """
+              UPDATE definitions SET
+                  part_of_speech = $part_of_speech,
+                  definition_zh = $definition_zh,
+                  definition_en = $definition_en,
+                  example = $example,
+                  sort_order = $sort_order,
+                  provider = $provider,
+                  source_kind = $source_kind,
+                  status = $status,
+                  source_detail = $source_detail,
+                  model_name = $model_name,
+                  prompt_version = $prompt_version,
+                  generated_at = $generated_at,
+                  confirmed_at = $confirmed_at,
+                  updated_at = $updated_at
+              WHERE id = $id AND word_id = $word_id;
+              """;
+        command.Parameters.AddWithValue("$id", id.ToString("D"));
+        command.Parameters.AddWithValue("$word_id", draft.WordId.ToString("D"));
+        command.Parameters.AddWithValue("$part_of_speech", DbValue(draft.PartOfSpeech));
+        command.Parameters.AddWithValue("$definition_zh", DbValue(draft.DefinitionZh));
+        command.Parameters.AddWithValue("$definition_en", DbValue(draft.DefinitionEn));
+        command.Parameters.AddWithValue("$example", DbValue(draft.Example));
+        command.Parameters.AddWithValue("$sort_order", draft.SortOrder);
+        command.Parameters.AddWithValue("$provider", draft.SourceKind == DefinitionSourceKind.LanguageModel ? "llm" : "manual");
+        command.Parameters.AddWithValue("$source_kind", ToSourceKindValue(draft.SourceKind));
+        command.Parameters.AddWithValue("$status", draft.Status.ToString().ToLowerInvariant());
+        command.Parameters.AddWithValue("$source_detail", DbValue(draft.SourceDetail));
+        command.Parameters.AddWithValue("$model_name", DbValue(draft.ModelName));
+        command.Parameters.AddWithValue("$prompt_version", DbValue(draft.PromptVersion));
+        command.Parameters.AddWithValue("$generated_at", DbValue(ToTimestamp(draft.GeneratedAt)));
+        command.Parameters.AddWithValue("$confirmed_at", DbValue(ToTimestamp(draft.ConfirmedAt)));
+        command.Parameters.AddWithValue("$created_at", ToTimestamp(existing?.CreatedAt ?? now));
+        command.Parameters.AddWithValue("$updated_at", ToTimestamp(now));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return new SavedDefinition(
+            Id: id,
+            WordId: draft.WordId,
+            PartOfSpeech: draft.PartOfSpeech,
+            DefinitionZh: draft.DefinitionZh,
+            DefinitionEn: draft.DefinitionEn,
+            Example: draft.Example,
+            SortOrder: draft.SortOrder,
+            SourceKind: draft.SourceKind,
+            Status: draft.Status,
+            SourceDetail: draft.SourceDetail,
+            ModelName: draft.ModelName,
+            PromptVersion: draft.PromptVersion,
+            GeneratedAt: draft.GeneratedAt,
+            ConfirmedAt: draft.ConfirmedAt,
+            CreatedAt: existing?.CreatedAt ?? now,
+            UpdatedAt: now);
+    }
+
+    public async Task<bool> DeleteAsync(
+        Guid definitionId,
+        CancellationToken cancellationToken = default)
+    {
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM definitions WHERE id = $id;";
+        command.Parameters.AddWithValue("$id", definitionId.ToString("D"));
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
     private static async Task<IReadOnlyList<WordRecord>> FindCandidatesAsync(
         SqliteConnection connection,
         SqliteTransaction? transaction,
@@ -196,6 +337,75 @@ public sealed class SqliteWordRepository : IWordRepository
 
         return result;
     }
+
+    private static async Task<SavedDefinition?> LoadDefinitionAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Guid definitionId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT id, word_id, part_of_speech, definition_zh, definition_en, example,
+                   sort_order, source_kind, status, source_detail, model_name,
+                   prompt_version, generated_at, confirmed_at, created_at, updated_at
+            FROM definitions
+            WHERE id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", definitionId.ToString("D"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? ReadDefinition(reader) : null;
+    }
+
+    private static SavedDefinition ReadDefinition(SqliteDataReader reader) =>
+        new(
+            Id: Guid.Parse(reader.GetString(0)),
+            WordId: Guid.Parse(reader.GetString(1)),
+            PartOfSpeech: NullableString(reader, 2),
+            DefinitionZh: NullableString(reader, 3),
+            DefinitionEn: NullableString(reader, 4),
+            Example: NullableString(reader, 5),
+            SortOrder: reader.GetInt32(6),
+            SourceKind: ParseSourceKind(reader.GetString(7)),
+            Status: ParseDefinitionStatus(reader.GetString(8)),
+            SourceDetail: NullableString(reader, 9),
+            ModelName: NullableString(reader, 10),
+            PromptVersion: NullableString(reader, 11),
+            GeneratedAt: NullableTimestamp(reader, 12),
+            ConfirmedAt: NullableTimestamp(reader, 13),
+            CreatedAt: NullableTimestamp(reader, 14) ?? DateTimeOffset.UnixEpoch,
+            UpdatedAt: NullableTimestamp(reader, 15) ?? DateTimeOffset.UnixEpoch);
+
+    private static object DbValue(string? value) => string.IsNullOrWhiteSpace(value) ? DBNull.Value : value.Trim();
+
+    private static string? NullableString(SqliteDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+
+    private static DateTimeOffset? NullableTimestamp(SqliteDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : ParseTimestamp(reader.GetString(ordinal));
+
+    private static DefinitionSourceKind ParseSourceKind(string value) => value.ToLowerInvariant() switch
+    {
+        "manual" => DefinitionSourceKind.Manual,
+        "llm" => DefinitionSourceKind.LanguageModel,
+        _ => throw new InvalidDataException($"Unsupported definition source: {value}")
+    };
+
+    private static string ToSourceKindValue(DefinitionSourceKind sourceKind) => sourceKind switch
+    {
+        DefinitionSourceKind.Manual => "manual",
+        DefinitionSourceKind.LanguageModel => "llm",
+        _ => throw new ArgumentOutOfRangeException(nameof(sourceKind), sourceKind, "Unsupported definition source.")
+    };
+
+    private static DefinitionStatus ParseDefinitionStatus(string value) => value.ToLowerInvariant() switch
+    {
+        "proposed" => DefinitionStatus.Proposed,
+        "accepted" => DefinitionStatus.Accepted,
+        "rejected" => DefinitionStatus.Rejected,
+        _ => throw new InvalidDataException($"Unsupported definition status: {value}")
+    };
 
     private static async Task<ReviewWord?> LoadWordForReviewAsync(
         SqliteConnection connection,

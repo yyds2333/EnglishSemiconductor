@@ -8,7 +8,7 @@ namespace WordPin.Infrastructure.Learning;
 /// </summary>
 public sealed class SqliteLearningDatabase : IAsyncDisposable
 {
-    private const int CurrentSchemaVersion = 2;
+    private const int CurrentSchemaVersion = 3;
     private readonly SemaphoreSlim migrationLock = new(1, 1);
     private readonly string databasePath;
     private bool initialized;
@@ -55,6 +55,11 @@ public sealed class SqliteLearningDatabase : IAsyncDisposable
             if (currentVersion < 2)
             {
                 await ApplyMigrationAsync(connection, 2, MigrationV2, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (currentVersion < 3)
+            {
+                await ApplyMigrationAsync(connection, 3, MigrationV3, cancellationToken).ConfigureAwait(false);
             }
 
             initialized = true;
@@ -278,10 +283,37 @@ public sealed class SqliteLearningDatabase : IAsyncDisposable
             value TEXT NULL,
             updated_at TEXT NOT NULL
         );
+
+        CREATE TABLE llm_usage (
+            local_date TEXT PRIMARY KEY,
+            request_count INTEGER NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         """;
 
     private const string MigrationV2 = """
         ALTER TABLE words ADD COLUMN first_reviewed_at TEXT NULL;
         ALTER TABLE words ADD COLUMN last_feedback TEXT NULL;
+        """;
+
+    private const string MigrationV3 = """
+        ALTER TABLE definitions ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'manual';
+        ALTER TABLE definitions ADD COLUMN source_detail TEXT NULL;
+        ALTER TABLE definitions ADD COLUMN model_name TEXT NULL;
+        ALTER TABLE definitions ADD COLUMN prompt_version TEXT NULL;
+        ALTER TABLE definitions ADD COLUMN status TEXT NOT NULL DEFAULT 'accepted';
+        ALTER TABLE definitions ADD COLUMN generated_at TEXT NULL;
+        ALTER TABLE definitions ADD COLUMN confirmed_at TEXT NULL;
+        ALTER TABLE definitions ADD COLUMN created_at TEXT NULL;
+        ALTER TABLE definitions ADD COLUMN updated_at TEXT NULL;
+
+        CREATE INDEX IF NOT EXISTS ix_definitions_word_status
+            ON definitions(word_id, status, sort_order);
+
+        CREATE TABLE IF NOT EXISTS llm_usage (
+            local_date TEXT PRIMARY KEY,
+            request_count INTEGER NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         """;
 }

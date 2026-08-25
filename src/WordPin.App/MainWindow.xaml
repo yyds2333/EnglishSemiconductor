@@ -30,6 +30,16 @@
                    Text="Windows 11 x64 · 工程骨架"
                    Foreground="#666666" />
 
+        <StackPanel Grid.Row="2"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Margin="0,0,6,0"
+                    Click="ImportDictionaryButton_Click"
+                    Content="导入 CSV 词典" />
+            <Button Click="LlmSettingsButton_Click"
+                    Content="AI 设置" />
+        </StackPanel>
+
         <Border Grid.Row="3"
                 Margin="0,16,0,12"
                 Padding="12"
@@ -46,6 +56,28 @@
                            Margin="0,12,0,0"
                            Text="本地释义：等待收词"
                            TextWrapping="Wrap" />
+                <StackPanel Margin="0,10,0,0"
+                            Orientation="Horizontal">
+                    <Button x:Name="EditDefinitionButton"
+                            Margin="0,0,8,0"
+                            Click="EditDefinitionButton_Click"
+                            Content="添加释义"
+                            Visibility="Collapsed" />
+                    <Button x:Name="RestoreDefinitionButton"
+                            Click="RestoreDefinitionButton_Click"
+                            Content="恢复本地释义"
+                            Visibility="Collapsed" />
+                    <Button x:Name="AcceptAiButton"
+                            Margin="8,0,0,0"
+                            Click="AcceptAiButton_Click"
+                            Content="采用 AI 释义"
+                            Visibility="Collapsed" />
+                    <Button x:Name="RetryAiButton"
+                            Margin="8,0,0,0"
+                            Click="RetryAiButton_Click"
+                            Content="重新生成"
+                            Visibility="Collapsed" />
+                </StackPanel>
             </StackPanel>
         </Border>
 

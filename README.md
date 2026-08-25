@@ -4,7 +4,7 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 
 ## 当前阶段
 
-项目当前处于 **S0：规格收敛与关键决策**。代码开发将在熟练度算法、词典数据源和单词数据模型完成决策后进入完整实现。
+项目已完成 v0.1.0 发布，正在开发 **v0.2.0：本地释义管理与 AI 释义补全**。
 
 ## 平台基线
 
@@ -31,6 +31,7 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 - [ADR-005：单词、词形、词义和短语模型](docs/adr/ADR-005-单词词形词义模型.md)
 - [ADR-006：熟练度与复习调度算法](docs/adr/ADR-006-熟练度与复习调度算法.md)
 - [ADR-007：SQLite 日志、备份与恢复](docs/adr/ADR-007-SQLite日志备份与恢复.md)
+- [v0.2.0：本地释义与大模型补全实施计划](docs/specifications/WordPin_本地释义与大模型补全实施计划_v1.0.md)
 - [当前状态](docs/STATUS.md)
 
 ## 工作原则
@@ -41,9 +42,7 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 4. 默认不持续监听剪贴板。
 5. 只提交可构建、可验证的变更。
 
-## 计划中的命令
-
-代码骨架完成后，根目录将提供以下可重复命令：
+## 常用命令
 
 使用仓库脚本执行构建和发布：
 
@@ -56,7 +55,13 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 
 `-Installer` 会先生成 `win-x64` 自包含发布目录，再调用 Inno Setup 6 的 `iscc.exe` 生成 per-user 安装包；安装器未安装时命令会明确失败并提示安装依赖。
 
-发布完成后运行 `artifacts\publish\win-x64\WordPin.exe`。当前窗口始终置顶，支持 `Ctrl+Shift+D`（先复制、后按快捷键）主动读取剪贴板，或手动输入并立即保存到 `%LOCALAPPDATA%\WordPin\wordpin.db`；应用不会持续监听剪贴板。每次保存后提供 5 秒撤销，并从 `%LOCALAPPDATA%\WordPin\dictionary\dictionary.db` 读取本地释义。
+运行 `artifacts\publish\win-x64\WordPin.exe` 或安装包中的 WordPin。当前窗口始终置顶，支持 `Ctrl+Shift+D`（先复制、后按快捷键）主动读取剪贴板，或手动输入并立即保存到 `%LOCALAPPDATA%\WordPin\wordpin.db`；应用不会持续监听剪贴板。每次保存后提供 5 秒撤销。
+
+主窗口支持“导入 CSV 词典”和“AI 设置”。本地释义缺失时，如果已配置并启用 AI 补全，应用会异步生成带“AI 生成 · 未确认”标记的候选；点击“编辑并采用”后才保存为用户释义。AI Key 使用 Windows 当前用户 DPAPI 加密保存，不写入 SQLite 或日志。
+
+AI 设置使用 OpenAI 兼容的 `/chat/completions` 接口，Base URL 必须为 HTTPS，默认每日最多请求 30 次。同一个单词的未确认候选会缓存 24 小时；网络失败不会阻止收词和复习。
+
+用户释义保存在 `%LOCALAPPDATA%\WordPin\wordpin.db`，可通过“编辑释义”修改或通过“恢复本地释义”删除用户覆盖。词典导入会先写入 staging 数据库，成功后备份并替换 `%LOCALAPPDATA%\WordPin\dictionary\dictionary.db`。
 
 导入已下载并完成许可复核的 ECDICT CSV 数据包：
 

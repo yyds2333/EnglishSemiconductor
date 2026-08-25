@@ -10,6 +10,8 @@ public partial class App : System.Windows.Application, IDisposable
 {
     private SqliteLearningDatabase? database;
     private SqliteDictionaryStore? dictionaryStore;
+    private SqliteDictionaryImportService? dictionaryImportService;
+    private OpenAiCompatibleDefinitionProvider? languageModelProvider;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -23,10 +25,26 @@ public partial class App : System.Windows.Application, IDisposable
         var dictionaryDirectory = Path.Combine(dataDirectory, "dictionary");
         dictionaryStore = new SqliteDictionaryStore(Path.Combine(dictionaryDirectory, "dictionary.db"));
         dictionaryStore.InitializeAsync().GetAwaiter().GetResult();
+        dictionaryImportService = new SqliteDictionaryImportService(Path.Combine(dictionaryDirectory, "dictionary.db"));
 
         var repository = new SqliteWordRepository(database);
         var queueService = new SqliteStudyQueueService(database);
-        var window = new MainWindow(new WpfClipboardReader(), repository, dictionaryStore, queueService);
+        var llmSettingsStore = new DpapiLlmSettingsStore(dataDirectory);
+        languageModelProvider = new OpenAiCompatibleDefinitionProvider(llmSettingsStore);
+        var usageStore = new SqliteLlmUsageStore(database);
+        var definitionResolver = new DefinitionResolver(
+            repository,
+            dictionaryStore,
+            languageModelProvider,
+            usageStore);
+        var window = new MainWindow(
+            new WpfClipboardReader(),
+            repository,
+            repository,
+            definitionResolver,
+            queueService,
+            dictionaryImportService,
+            llmSettingsStore);
         MainWindow = window;
         window.Show();
     }
@@ -41,6 +59,10 @@ public partial class App : System.Windows.Application, IDisposable
     {
         dictionaryStore?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         dictionaryStore = null;
+        dictionaryImportService?.Dispose();
+        dictionaryImportService = null;
+        languageModelProvider?.Dispose();
+        languageModelProvider = null;
         database?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         database = null;
         GC.SuppressFinalize(this);
