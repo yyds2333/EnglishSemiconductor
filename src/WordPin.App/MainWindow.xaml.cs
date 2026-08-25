@@ -2,6 +2,7 @@ using System.Windows;
 using System.Data.Common;
 using System.IO;
 using System.Windows.Input;
+using System.Windows.Threading;
 using WordPin.Application;
 using WordPin.Domain;
 
@@ -12,6 +13,9 @@ public partial class MainWindow : Window, IDisposable
     private readonly IClipboardReader clipboardReader;
     private readonly IWordRepository wordRepository;
     private readonly GlobalHotKeyService globalHotKeyService;
+    private readonly DispatcherTimer undoTimer;
+    private WordCaptureResult? lastCapture;
+    private int undoSecondsRemaining;
 
     public MainWindow(IClipboardReader clipboardReader, IWordRepository wordRepository)
     {
@@ -19,6 +23,8 @@ public partial class MainWindow : Window, IDisposable
         this.wordRepository = wordRepository ?? throw new ArgumentNullException(nameof(wordRepository));
         InitializeComponent();
         globalHotKeyService = new GlobalHotKeyService(this, hotKeyId: 1001, HandleGlobalCapture);
+        undoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        undoTimer.Tick += UndoTimer_Tick;
         SourceInitialized += MainWindow_SourceInitialized;
     }
 
@@ -84,6 +90,7 @@ public partial class MainWindow : Window, IDisposable
 
     public void Dispose()
     {
+        undoTimer.Stop();
         globalHotKeyService.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -111,6 +118,35 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
+    private async void UndoButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (lastCapture is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var undone = await wordRepository.UndoLastCaptureAsync(lastCapture);
+            if (undone)
+            {
+                SetStatus($"已撤销：{lastCapture.Word.Term}", isSuccess: true);
+            }
+            else
+            {
+                SetStatus("撤销未执行：这条记录可能已经发生新的变化。", isSuccess: false);
+            }
+        }
+        catch (DbException exception)
+        {
+            SetStatus($"撤销失败：{exception.Message}", isSuccess: false);
+        }
+        finally
+        {
+            StopUndoWindow();
+        }
+    }
+
     private async Task SaveCaptureAsync(NewWordCapture capture)
     {
         var result = await wordRepository.CaptureAsync(capture);
@@ -121,7 +157,31 @@ public partial class MainWindow : Window, IDisposable
         }
 
         var action = result.IsNew ? "已记录" : "已更新遇见次数";
+        lastCapture = result;
+        undoSecondsRemaining = 5;
+        UndoButton.Content = "撤销 (5)";
+        UndoButton.Visibility = Visibility.Visible;
+        undoTimer.Start();
         SetStatus($"{action}：{result.Word.Term}（遇见 {result.Word.EncounterCount} 次）", isSuccess: true);
+    }
+
+    private void UndoTimer_Tick(object? sender, EventArgs e)
+    {
+        undoSecondsRemaining--;
+        if (undoSecondsRemaining <= 0)
+        {
+            StopUndoWindow();
+            return;
+        }
+
+        UndoButton.Content = $"撤销 ({undoSecondsRemaining})";
+    }
+
+    private void StopUndoWindow()
+    {
+        undoTimer.Stop();
+        lastCapture = null;
+        UndoButton.Visibility = Visibility.Collapsed;
     }
 
     private void SetStatus(string message, bool isSuccess)

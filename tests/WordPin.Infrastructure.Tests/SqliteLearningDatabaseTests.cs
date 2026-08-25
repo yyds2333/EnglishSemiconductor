@@ -76,6 +76,33 @@ public sealed class SqliteLearningDatabaseTests
         Assert.Equal("take care of", TermNormalizer.NormalizeLookup("  Take\tcare  of "));
     }
 
+    [Fact]
+    public async Task UndoRemovesOnlyTheLatestCapture()
+    {
+        var databasePath = CreateDatabasePath();
+        try
+        {
+            await using (var database = new SqliteLearningDatabase(databasePath))
+            {
+                var repository = new SqliteWordRepository(database);
+                var first = await repository.CaptureAsync(new NewWordCapture("retain"));
+                var repeated = await repository.CaptureAsync(new NewWordCapture("retain"));
+
+                Assert.True(await repository.UndoLastCaptureAsync(repeated));
+                var candidates = await repository.FindCandidatesAsync("retain");
+                Assert.Single(candidates);
+                Assert.Equal(1, candidates[0].EncounterCount);
+
+                Assert.True(await repository.UndoLastCaptureAsync(first));
+                Assert.Empty(await repository.FindCandidatesAsync("retain"));
+            }
+        }
+        finally
+        {
+            DeleteDatabaseFiles(databasePath);
+        }
+    }
+
     private static string CreateDatabasePath() =>
         Path.Combine(Path.GetTempPath(), $"wordpin-learning-test-{Guid.NewGuid():N}.db");
 

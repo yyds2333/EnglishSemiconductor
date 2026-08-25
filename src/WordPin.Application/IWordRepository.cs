@@ -13,4 +13,8 @@ public interface IWordRepository
         string language = "en",
         EntryKind entryKind = EntryKind.Word,
         CancellationToken cancellationToken = default);
+
+    Task<bool> UndoLastCaptureAsync(
+        WordCaptureResult capture,
+        CancellationToken cancellationToken = default);
 }

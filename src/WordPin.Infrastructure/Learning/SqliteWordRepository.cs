@@ -114,6 +114,25 @@ public sealed class SqliteWordRepository : IWordRepository
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<bool> UndoLastCaptureAsync(
+        WordCaptureResult capture,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var changed = capture.IsNew
+            ? await DeleteNewWordAsync(connection, transaction, capture.Word.Id, cancellationToken).ConfigureAwait(false)
+            : await DeleteLatestEncounterAsync(connection, transaction, capture.Word.Id, cancellationToken).ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return changed;
+    }
+
     private static async Task<IReadOnlyList<WordRecord>> FindCandidatesAsync(
         SqliteConnection connection,
         SqliteTransaction? transaction,
@@ -217,6 +236,62 @@ public sealed class SqliteWordRepository : IWordRepository
         command.Parameters.AddWithValue("$source_window_title", (object?)capture.SourceWindowTitle ?? DBNull.Value);
         command.Parameters.AddWithValue("$encountered_at", DateTimeOffset.UtcNow.ToString("O"));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> DeleteNewWordAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Guid wordId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            DELETE FROM words
+            WHERE id = $id
+              AND encounter_count = 1
+              AND NOT EXISTS (SELECT 1 FROM review_events WHERE word_id = words.id)
+              AND NOT EXISTS (SELECT 1 FROM definitions WHERE word_id = words.id);
+            """;
+        command.Parameters.AddWithValue("$id", wordId.ToString("D"));
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    private static async Task<bool> DeleteLatestEncounterAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Guid wordId,
+        CancellationToken cancellationToken)
+    {
+        await using var deleteCommand = connection.CreateCommand();
+        deleteCommand.Transaction = transaction;
+        deleteCommand.CommandText = """
+            DELETE FROM encounters
+            WHERE id = (
+                SELECT id FROM encounters
+                WHERE word_id = $word_id
+                ORDER BY encountered_at DESC
+                LIMIT 1
+            );
+            """;
+        deleteCommand.Parameters.AddWithValue("$word_id", wordId.ToString("D"));
+        if (await deleteCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+        {
+            return false;
+        }
+
+        await using var updateCommand = connection.CreateCommand();
+        updateCommand.Transaction = transaction;
+        updateCommand.CommandText = """
+            UPDATE words
+            SET encounter_count = MAX(0, encounter_count - 1),
+                updated_at = $updated_at
+            WHERE id = $id;
+            """;
+        updateCommand.Parameters.AddWithValue("$updated_at", DateTimeOffset.UtcNow.ToString("O"));
+        updateCommand.Parameters.AddWithValue("$id", wordId.ToString("D"));
+        await updateCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     private static WordRecord ReadWord(SqliteDataReader reader)

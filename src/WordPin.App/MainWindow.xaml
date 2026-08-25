@@ -64,9 +64,19 @@
                     Content="保存输入" />
         </StackPanel>
 
-        <TextBlock x:Name="StatusTextBlock"
-                   Grid.Row="6"
-                   Text="置顶窗口已启用"
-                   Foreground="#4A7C59" />
+        <StackPanel Grid.Row="6"
+                    Orientation="Horizontal">
+            <TextBlock x:Name="StatusTextBlock"
+                       VerticalAlignment="Center"
+                       Text="置顶窗口已启用"
+                       Foreground="#4A7C59"
+                       TextWrapping="Wrap" />
+            <Button x:Name="UndoButton"
+                    Margin="12,0,0,0"
+                    Padding="8,3"
+                    Click="UndoButton_Click"
+                    Content="撤销"
+                    Visibility="Collapsed" />
+        </StackPanel>
     </Grid>
 </Window>
