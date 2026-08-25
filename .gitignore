@@ -1,0 +1,26 @@
+# Build output
+bin/
+obj/
+artifacts/
+TestResults/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local WordPin data and diagnostics
+*.db
+*.db-shm
+*.db-wal
+local-data/
+logs/
+backups/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Local tooling
+.codex-local/

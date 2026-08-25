@@ -1,0 +1,43 @@
+# WordPin
+
+WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。它提供置顶悬浮窗、快速收词、上下文保存、熟练度评估和间隔复习。
+
+## 当前阶段
+
+项目当前处于 **S0：规格收敛与关键决策**。代码开发将在熟练度算法、词典数据源和单词数据模型完成决策后进入完整实现。
+
+## 平台基线
+
+- Windows 11 x64
+- 最低系统基线：Windows 11 24H2（OS build 26100）
+- 构建目标：`win-x64`
+- .NET SDK：10.0.400
+
+## 文档
+
+- [项目实施规划书](docs/specifications/WordPin_项目实施规划书_v1.0.md)
+- [产品与开发规格书 v1.0](docs/specifications/WordPin_Windows单词学习工具_产品与开发规格书_v1.0.md)
+- [ADR-001：平台与发布架构](docs/adr/ADR-001-平台与发布架构.md)
+- [ADR-002：工程技术栈](docs/adr/ADR-002-工程技术栈.md)
+- [当前状态](docs/STATUS.md)
+
+## 工作原则
+
+1. 先锁定影响数据和隐私的决策，再实现界面。
+2. 核心学习算法必须有可重复的自动化测试。
+3. 收词先落本地数据，再进行网络查询。
+4. 默认不持续监听剪贴板。
+5. 只提交可构建、可验证的变更。
+
+## 计划中的命令
+
+代码骨架完成后，根目录将提供以下可重复命令：
+
+```powershell
+dotnet restore
+dotnet build --configuration Release
+dotnet test --configuration Release
+dotnet publish --configuration Release --runtime win-x64 --self-contained true
+```
+
+当前尚未创建可运行项目，以上命令将在 S1 工程骨架阶段启用。
