@@ -18,6 +18,7 @@ S0：规格收敛与关键决策
 - 完成 Windows 11 x64 Release 构建验证（0警告、0错误）。
 - 完成 `win-x64` 自包含发布验证，产物位于 `artifacts/publish/win-x64`。
 - 添加可重复执行的 `tools/build.ps1` 构建/发布脚本。
+- 建立 ADR-006 熟练度算法候选基线和 PowerShell 序列模拟器。
 
 ## 当前 P0 决策
 
@@ -33,6 +34,12 @@ S0：规格收敛与关键决策
 3. 调研词典提供器并记录 ADR-003。
 4. 记录单词、词形和词义模型 ADR-005。
 5. 记录安装器、数据目录和更新方案 ADR-004。
+
+算法模拟命令：
+
+```powershell
+.\tools\simulate-mastery.ps1
+```
 
 ## 发布规则
 
