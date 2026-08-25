@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <RootNamespace>WordPin.App</RootNamespace>
+    <AssemblyName>WordPin</AssemblyName>
+    <ApplicationIcon />
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableDefaultApplicationDefinition>true</EnableDefaultApplicationDefinition>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WordPin.Application\WordPin.Application.csproj" />
+    <ProjectReference Include="..\WordPin.Infrastructure\WordPin.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

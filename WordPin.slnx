@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WordPin.App/WordPin.App.csproj" />
+    <Project Path="src/WordPin.Application/WordPin.Application.csproj" />
+    <Project Path="src/WordPin.Domain/WordPin.Domain.csproj" />
+    <Project Path="src/WordPin.Infrastructure/WordPin.Infrastructure.csproj" />
+  </Folder>
+</Solution>

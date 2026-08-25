@@ -24,3 +24,10 @@ Desktop.ini
 
 # Local tooling
 .codex-local/
+.dotnet-cli-home/
+.nuget-packages/
+.appdata/
+.localappdata/
+.build-home/
+.build-appdata/
+.build-localappdata/

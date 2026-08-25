@@ -33,11 +33,11 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 
 代码骨架完成后，根目录将提供以下可重复命令：
 
+使用仓库脚本执行构建和发布：
+
 ```powershell
-dotnet restore
-dotnet build --configuration Release
-dotnet test --configuration Release
-dotnet publish --configuration Release --runtime win-x64 --self-contained true
+.\tools\build.ps1
+.\tools\build.ps1 -Publish
 ```
 
-当前尚未创建可运行项目，以上命令将在 S1 工程骨架阶段启用。
+仓库配置只使用 `nuget.org` 公共源；生产构建应在依赖版本锁定后使用锁文件或内部镜像复核供应链。

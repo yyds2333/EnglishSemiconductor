@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>WordPin.Infrastructure</RootNamespace>
+    <AssemblyName>WordPin.Infrastructure</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WordPin.Application\WordPin.Application.csproj" />
+    <ProjectReference Include="..\WordPin.Domain\WordPin.Domain.csproj" />
+  </ItemGroup>
+</Project>
