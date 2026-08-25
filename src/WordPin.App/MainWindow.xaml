@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="WordPin"
         Width="360"
-        Height="360"
+        Height="430"
         MinWidth="280"
         MinHeight="180"
         Topmost="True"
@@ -16,6 +16,7 @@
             <RowDefinition Height="16" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -81,6 +82,37 @@
                     Click="UndoButton_Click"
                     Content="撤销"
                     Visibility="Collapsed" />
+        </StackPanel>
+
+        <StackPanel x:Name="ReviewPanel"
+                    Grid.Row="7"
+                    Margin="0,12,0,0"
+                    Visibility="Collapsed">
+            <TextBlock x:Name="MasteryTextBlock"
+                       Margin="0,0,0,8"
+                       FontWeight="SemiBold"
+                       Text="熟练度：L0 · 0 分" />
+            <StackPanel Orientation="Horizontal">
+                <Button Width="64"
+                        Margin="0,0,6,0"
+                        Click="ReviewButton_Click"
+                        Content="AGAIN"
+                        Tag="Again" />
+                <Button Width="64"
+                        Margin="0,0,6,0"
+                        Click="ReviewButton_Click"
+                        Content="HARD"
+                        Tag="Hard" />
+                <Button Width="64"
+                        Margin="0,0,6,0"
+                        Click="ReviewButton_Click"
+                        Content="GOOD"
+                        Tag="Good" />
+                <Button Width="64"
+                        Click="ReviewButton_Click"
+                        Content="EASY"
+                        Tag="Easy" />
+            </StackPanel>
         </StackPanel>
     </Grid>
 </Window>

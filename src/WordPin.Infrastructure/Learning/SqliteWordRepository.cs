@@ -133,6 +133,35 @@ public sealed class SqliteWordRepository : IWordRepository
         return changed;
     }
 
+    public async Task<ReviewResult> ReviewAsync(
+        Guid wordId,
+        ReviewFeedback feedback,
+        DateTimeOffset reviewedAt,
+        bool usedHint = false,
+        CancellationToken cancellationToken = default)
+    {
+        await database.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var current = await LoadWordForReviewAsync(connection, transaction, wordId, cancellationToken).ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Word not found: {wordId}");
+        var evaluation = MasteryAlgorithm.Evaluate(current.State, feedback, reviewedAt, usedHint);
+        await UpdateMasteryAsync(connection, transaction, wordId, evaluation.After, cancellationToken).ConfigureAwait(false);
+        await InsertReviewEventAsync(connection, transaction, wordId, evaluation, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        var updatedWord = current.Word with
+        {
+            MasteryScore = evaluation.After.Score,
+            MasteryLevel = evaluation.After.Level,
+            UpdatedAt = evaluation.After.LastReviewedAt ?? DateTimeOffset.UtcNow
+        };
+        return new ReviewResult(updatedWord, evaluation);
+    }
+
     private static async Task<IReadOnlyList<WordRecord>> FindCandidatesAsync(
         SqliteConnection connection,
         SqliteTransaction? transaction,
@@ -166,6 +195,143 @@ public sealed class SqliteWordRepository : IWordRepository
         }
 
         return result;
+    }
+
+    private static async Task<ReviewWord?> LoadWordForReviewAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Guid wordId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT id, term, normalized_term, language, entry_kind, sense_key,
+                   mastery_score, mastery_level, stability_days, evidence_points_tenths,
+                   lapse_count, success_streak, review_interval_days, next_review_at,
+                   last_review_at, first_reviewed_at, last_feedback, algorithm_version,
+                   encounter_count, is_suspended, created_at, updated_at
+            FROM words
+            WHERE id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", wordId.ToString("D"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        var word = new WordRecord(
+            Id: Guid.Parse(reader.GetString(0)),
+            Term: reader.GetString(1),
+            NormalizedTerm: reader.GetString(2),
+            Language: reader.GetString(3),
+            EntryKind: ParseEntryKind(reader.GetString(4)),
+            SenseKey: reader.IsDBNull(5) ? null : reader.GetString(5),
+            MasteryScore: reader.GetInt32(6),
+            MasteryLevel: reader.GetInt32(7),
+            EncounterCount: reader.GetInt32(18),
+            IsSuspended: reader.GetInt32(19) != 0,
+            CreatedAt: ParseTimestamp(reader.GetString(20)),
+            UpdatedAt: ParseTimestamp(reader.GetString(21)));
+        var state = new MasteryState(
+            Score: reader.GetInt32(6),
+            Level: reader.GetInt32(7),
+            StabilityDays: reader.GetDouble(8),
+            EvidencePointsTenths: reader.GetInt32(9),
+            LapseCount: reader.GetInt32(10),
+            SuccessStreak: reader.GetInt32(11),
+            ReviewIntervalDays: reader.GetDouble(12),
+            NextReviewAt: reader.IsDBNull(13) ? null : ParseTimestamp(reader.GetString(13)),
+            LastReviewedAt: reader.IsDBNull(14) ? null : ParseTimestamp(reader.GetString(14)),
+            FirstReviewedAt: reader.IsDBNull(15) ? null : ParseTimestamp(reader.GetString(15)),
+            LastFeedback: reader.IsDBNull(16) ? null : ParseFeedback(reader.GetString(16)),
+            AlgorithmVersion: reader.GetString(17));
+        return new ReviewWord(word, state);
+    }
+
+    private static async Task UpdateMasteryAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Guid wordId,
+        MasteryState state,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            UPDATE words SET
+                mastery_score = $score,
+                mastery_level = $level,
+                stability_days = $stability,
+                evidence_points_tenths = $evidence,
+                lapse_count = $lapses,
+                success_streak = $streak,
+                review_interval_days = $interval,
+                next_review_at = $next_review,
+                last_review_at = $last_review,
+                first_reviewed_at = $first_review,
+                last_feedback = $last_feedback,
+                algorithm_version = $algorithm_version,
+                updated_at = $updated_at
+            WHERE id = $id;
+            """;
+        command.Parameters.AddWithValue("$score", state.Score);
+        command.Parameters.AddWithValue("$level", state.Level);
+        command.Parameters.AddWithValue("$stability", state.StabilityDays);
+        command.Parameters.AddWithValue("$evidence", state.EvidencePointsTenths);
+        command.Parameters.AddWithValue("$lapses", state.LapseCount);
+        command.Parameters.AddWithValue("$streak", state.SuccessStreak);
+        command.Parameters.AddWithValue("$interval", state.ReviewIntervalDays);
+        command.Parameters.AddWithValue("$next_review", (object?)ToTimestamp(state.NextReviewAt) ?? DBNull.Value);
+        command.Parameters.AddWithValue("$last_review", (object?)ToTimestamp(state.LastReviewedAt) ?? DBNull.Value);
+        command.Parameters.AddWithValue("$first_review", (object?)ToTimestamp(state.FirstReviewedAt) ?? DBNull.Value);
+        command.Parameters.AddWithValue("$last_feedback", (object?)state.LastFeedback?.ToString().ToUpperInvariant() ?? DBNull.Value);
+        command.Parameters.AddWithValue("$algorithm_version", state.AlgorithmVersion);
+        command.Parameters.AddWithValue("$updated_at", ToTimestamp(state.LastReviewedAt ?? DateTimeOffset.UtcNow));
+        command.Parameters.AddWithValue("$id", wordId.ToString("D"));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task InsertReviewEventAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        Guid wordId,
+        MasteryEvaluation evaluation,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO review_events (
+                id, word_id, feedback, score_before, score_after, level_before, level_after,
+                stability_before, stability_after, evidence_before_tenths, evidence_after_tenths,
+                interval_before_days, interval_after_days, scheduled_due_at, actual_elapsed_days,
+                reviewed_at, algorithm_version, used_hint)
+            VALUES ($id, $word_id, $feedback, $score_before, $score_after, $level_before, $level_after,
+                    $stability_before, $stability_after, $evidence_before, $evidence_after,
+                    $interval_before, $interval_after, $scheduled_due, $elapsed,
+                    $reviewed_at, $algorithm_version, $used_hint);
+            """;
+        command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("D"));
+        command.Parameters.AddWithValue("$word_id", wordId.ToString("D"));
+        command.Parameters.AddWithValue("$feedback", evaluation.Feedback.ToString().ToUpperInvariant());
+        command.Parameters.AddWithValue("$score_before", evaluation.Before.Score);
+        command.Parameters.AddWithValue("$score_after", evaluation.After.Score);
+        command.Parameters.AddWithValue("$level_before", evaluation.Before.Level);
+        command.Parameters.AddWithValue("$level_after", evaluation.After.Level);
+        command.Parameters.AddWithValue("$stability_before", evaluation.Before.StabilityDays);
+        command.Parameters.AddWithValue("$stability_after", evaluation.After.StabilityDays);
+        command.Parameters.AddWithValue("$evidence_before", evaluation.Before.EvidencePointsTenths);
+        command.Parameters.AddWithValue("$evidence_after", evaluation.After.EvidencePointsTenths);
+        command.Parameters.AddWithValue("$interval_before", evaluation.Before.ReviewIntervalDays);
+        command.Parameters.AddWithValue("$interval_after", evaluation.After.ReviewIntervalDays);
+        command.Parameters.AddWithValue("$scheduled_due", (object?)ToTimestamp(evaluation.Before.NextReviewAt) ?? DBNull.Value);
+        command.Parameters.AddWithValue("$elapsed", evaluation.ActualElapsedDays);
+        command.Parameters.AddWithValue("$reviewed_at", ToTimestamp(evaluation.ReviewedAt));
+        command.Parameters.AddWithValue("$algorithm_version", evaluation.After.AlgorithmVersion);
+        command.Parameters.AddWithValue("$used_hint", evaluation.UsedHint ? 1 : 0);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task InsertWordAsync(
@@ -311,6 +477,20 @@ public sealed class SqliteWordRepository : IWordRepository
             UpdatedAt: DateTimeOffset.Parse(reader.GetString(11), null, System.Globalization.DateTimeStyles.RoundtripKind));
     }
 
+    private static DateTimeOffset ParseTimestamp(string value) =>
+        DateTimeOffset.Parse(value, null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+    private static ReviewFeedback ParseFeedback(string value) => value.ToUpperInvariant() switch
+    {
+        "AGAIN" => ReviewFeedback.Again,
+        "HARD" => ReviewFeedback.Hard,
+        "GOOD" => ReviewFeedback.Good,
+        "EASY" => ReviewFeedback.Easy,
+        _ => throw new InvalidDataException($"Unsupported review feedback stored in database: {value}")
+    };
+
+    private static string? ToTimestamp(DateTimeOffset? value) => value?.ToUniversalTime().ToString("O");
+
     private static string ToEntryKindValue(EntryKind entryKind) => entryKind switch
     {
         EntryKind.Word => "word",
@@ -324,4 +504,6 @@ public sealed class SqliteWordRepository : IWordRepository
         "phrase" => EntryKind.Phrase,
         _ => throw new InvalidDataException($"Unsupported entry kind stored in database: {value}")
     };
+
+    private sealed record ReviewWord(WordRecord Word, MasteryState State);
 }

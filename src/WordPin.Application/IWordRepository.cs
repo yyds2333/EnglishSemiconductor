@@ -17,4 +17,11 @@ public interface IWordRepository
     Task<bool> UndoLastCaptureAsync(
         WordCaptureResult capture,
         CancellationToken cancellationToken = default);
+
+    Task<ReviewResult> ReviewAsync(
+        Guid wordId,
+        ReviewFeedback feedback,
+        DateTimeOffset reviewedAt,
+        bool usedHint = false,
+        CancellationToken cancellationToken = default);
 }

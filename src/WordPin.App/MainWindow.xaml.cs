@@ -16,6 +16,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly GlobalHotKeyService globalHotKeyService;
     private readonly DispatcherTimer undoTimer;
     private WordCaptureResult? lastCapture;
+    private WordRecord? currentWord;
     private int undoSecondsRemaining;
 
     public MainWindow(
@@ -152,11 +153,37 @@ public partial class MainWindow : Window, IDisposable
         }
     }
 
+    private async void ReviewButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentWord is null || sender is not Button button || button.Tag is not string feedbackText
+            || !Enum.TryParse<ReviewFeedback>(feedbackText, ignoreCase: true, out var feedback))
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await wordRepository.ReviewAsync(currentWord.Id, feedback, DateTimeOffset.UtcNow);
+            currentWord = result.Word;
+            UpdateMasteryDisplay(result.Evaluation.After);
+            StopUndoWindow();
+            SetStatus(
+                $"已记录 {feedbackText.ToUpperInvariant()}：L{result.Word.MasteryLevel} · {result.Word.MasteryScore} 分",
+                isSuccess: true);
+        }
+        catch (DbException exception)
+        {
+            SetStatus($"复习保存失败：{exception.Message}", isSuccess: false);
+        }
+    }
+
     private async Task SaveCaptureAsync(NewWordCapture capture)
     {
         var result = await wordRepository.CaptureAsync(capture);
         if (result.RequiresSenseSelection)
         {
+            currentWord = null;
+            ReviewPanel.Visibility = Visibility.Collapsed;
             DefinitionTextBlock.Text = "本地释义：请先选择词义候选。";
             SetStatus($"发现 {result.Candidates.Count} 个同形词候选，请后续选择词义。", isSuccess: false);
             return;
@@ -166,6 +193,11 @@ public partial class MainWindow : Window, IDisposable
         DefinitionTextBlock.Text = dictionaryEntry is null
             ? "本地释义：未找到本地释义"
             : FormatDictionaryEntry(dictionaryEntry);
+        currentWord = result.Word;
+        UpdateMasteryDisplay(new MasteryState(
+            Score: result.Word.MasteryScore,
+            Level: result.Word.MasteryLevel));
+        ReviewPanel.Visibility = Visibility.Visible;
         var action = result.IsNew ? "已记录" : "已更新遇见次数";
         lastCapture = result;
         undoSecondsRemaining = 5;
@@ -192,6 +224,11 @@ public partial class MainWindow : Window, IDisposable
         undoTimer.Stop();
         lastCapture = null;
         UndoButton.Visibility = Visibility.Collapsed;
+    }
+
+    private void UpdateMasteryDisplay(MasteryState state)
+    {
+        MasteryTextBlock.Text = $"熟练度：L{state.Level} · {state.Score} 分";
     }
 
     private void SetStatus(string message, bool isSuccess)

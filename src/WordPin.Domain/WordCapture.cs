@@ -28,3 +28,7 @@ public sealed record WordCaptureResult(
     bool IsNew,
     bool RequiresSenseSelection,
     IReadOnlyList<WordRecord> Candidates);
+
+public sealed record ReviewResult(
+    WordRecord Word,
+    MasteryEvaluation Evaluation);

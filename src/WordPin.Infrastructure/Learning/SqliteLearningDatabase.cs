@@ -8,7 +8,7 @@ namespace WordPin.Infrastructure.Learning;
 /// </summary>
 public sealed class SqliteLearningDatabase : IAsyncDisposable
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
     private readonly SemaphoreSlim migrationLock = new(1, 1);
     private readonly string databasePath;
     private bool initialized;
@@ -50,6 +50,11 @@ public sealed class SqliteLearningDatabase : IAsyncDisposable
             if (currentVersion < 1)
             {
                 await ApplyMigrationAsync(connection, 1, MigrationV1, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (currentVersion < 2)
+            {
+                await ApplyMigrationAsync(connection, 2, MigrationV2, cancellationToken).ConfigureAwait(false);
             }
 
             initialized = true;
@@ -273,5 +278,10 @@ public sealed class SqliteLearningDatabase : IAsyncDisposable
             value TEXT NULL,
             updated_at TEXT NOT NULL
         );
+        """;
+
+    private const string MigrationV2 = """
+        ALTER TABLE words ADD COLUMN first_reviewed_at TEXT NULL;
+        ALTER TABLE words ADD COLUMN last_feedback TEXT NULL;
         """;
 }
