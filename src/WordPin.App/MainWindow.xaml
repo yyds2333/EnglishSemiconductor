@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="WordPin"
         Width="360"
-        Height="260"
+        Height="360"
         MinWidth="280"
         MinHeight="180"
         Topmost="True"
@@ -16,6 +16,8 @@
             <RowDefinition Height="16" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -34,16 +36,37 @@
                 BorderThickness="1"
                 CornerRadius="8">
             <StackPanel>
-                <TextBlock Text="项目已连接"
+                <TextBlock Text="快速收词"
                            FontWeight="SemiBold" />
                 <TextBlock Margin="0,8,0,0"
-                           Text="下一步将接入快速收词和本地数据层。"
+                           Text="先复制单词或短语，再点击“读取剪贴板”。应用只在你主动操作时读取一次。"
                            TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
-        <TextBlock Grid.Row="4"
-                   Text="置顶窗口技术验证已启用"
+        <TextBox x:Name="TermTextBox"
+                 Grid.Row="4"
+                 MinHeight="32"
+                 Margin="0,0,0,8"
+                 Padding="8,5"
+                 ToolTip="也可以直接输入单词或短语"
+                 TextWrapping="Wrap" />
+
+        <StackPanel Grid.Row="5"
+                    Margin="0,0,0,12"
+                    Orientation="Horizontal">
+            <Button Width="120"
+                    Margin="0,0,8,0"
+                    Click="ReadClipboardButton_Click"
+                    Content="读取剪贴板" />
+            <Button Width="120"
+                    Click="SaveInputButton_Click"
+                    Content="保存输入" />
+        </StackPanel>
+
+        <TextBlock x:Name="StatusTextBlock"
+                   Grid.Row="6"
+                   Text="置顶窗口已启用"
                    Foreground="#4A7C59" />
     </Grid>
 </Window>
