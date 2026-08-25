@@ -651,8 +651,8 @@ WordPin-{version}-checksums.txt
 | 熟练度算法 | ADR-006工程基线已接受，模拟不变量通过 |
 | 安装方式 | per-user、自包含win-x64、Inno Setup候选，代码签名待正式发布 |
 | 代码仓库 | GitHub远程仓库已连接 |
-| 当前阶段 | S0/S1 技术基线 |
-| 下一项READY任务 | S0-07（完成指定ECDICT版本许可复核） |
+| 当前阶段 | S3/S4 数据层与收词闭环 |
+| 下一项READY任务 | S0-07（完成指定ECDICT版本许可复核）与S4-01（Windows剪贴板一次性读取） |
 
 ## 23. 下一步执行顺序
 
