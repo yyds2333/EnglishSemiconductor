@@ -9,4 +9,7 @@
     <ProjectReference Include="..\WordPin.Application\WordPin.Application.csproj" />
     <ProjectReference Include="..\WordPin.Domain\WordPin.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+  </ItemGroup>
 </Project>

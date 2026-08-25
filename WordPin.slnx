@@ -5,4 +5,10 @@
     <Project Path="src/WordPin.Domain/WordPin.Domain.csproj" />
     <Project Path="src/WordPin.Infrastructure/WordPin.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WordPin.Infrastructure.Tests/WordPin.Infrastructure.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/WordPin.DictionaryImport/WordPin.DictionaryImport.csproj" />
+  </Folder>
 </Solution>

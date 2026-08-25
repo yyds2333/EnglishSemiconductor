@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$Publish
+    [switch]$Publish,
+    [switch]$Test
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,6 +27,13 @@ dotnet restore (Join-Path $repoRoot 'WordPin.slnx') `
 dotnet build (Join-Path $repoRoot 'WordPin.slnx') `
     --configuration Release `
     --no-restore
+
+if ($Test) {
+    dotnet test (Join-Path $repoRoot 'tests\WordPin.Infrastructure.Tests\WordPin.Infrastructure.Tests.csproj') `
+        --configuration Release `
+        --no-restore `
+        --logger "console;verbosity=normal"
+}
 
 if ($Publish) {
     $publishRoot = Join-Path $repoRoot 'artifacts\publish\win-x64'
