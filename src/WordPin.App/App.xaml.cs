@@ -1,5 +1,7 @@
 using System.Windows;
 using System.IO;
+using WordPin.Application;
+using WordPin.Infrastructure.Dictionary;
 using WordPin.Infrastructure.Learning;
 
 namespace WordPin.App;
@@ -7,6 +9,7 @@ namespace WordPin.App;
 public partial class App : System.Windows.Application, IDisposable
 {
     private SqliteLearningDatabase? database;
+    private SqliteDictionaryStore? dictionaryStore;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -17,9 +20,12 @@ public partial class App : System.Windows.Application, IDisposable
             "WordPin");
         database = new SqliteLearningDatabase(Path.Combine(dataDirectory, "wordpin.db"));
         database.InitializeAsync().GetAwaiter().GetResult();
+        var dictionaryDirectory = Path.Combine(dataDirectory, "dictionary");
+        dictionaryStore = new SqliteDictionaryStore(Path.Combine(dictionaryDirectory, "dictionary.db"));
+        dictionaryStore.InitializeAsync().GetAwaiter().GetResult();
 
         var repository = new SqliteWordRepository(database);
-        var window = new MainWindow(new WpfClipboardReader(), repository);
+        var window = new MainWindow(new WpfClipboardReader(), repository, dictionaryStore);
         MainWindow = window;
         window.Show();
     }
@@ -32,6 +38,8 @@ public partial class App : System.Windows.Application, IDisposable
 
     public void Dispose()
     {
+        dictionaryStore?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        dictionaryStore = null;
         database?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         database = null;
         GC.SuppressFinalize(this);

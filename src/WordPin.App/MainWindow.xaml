@@ -41,6 +41,10 @@
                 <TextBlock Margin="0,8,0,0"
                            Text="先复制单词或短语，再点击“读取剪贴板”。应用只在你主动操作时读取一次。"
                            TextWrapping="Wrap" />
+                <TextBlock x:Name="DefinitionTextBlock"
+                           Margin="0,12,0,0"
+                           Text="本地释义：等待收词"
+                           TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 

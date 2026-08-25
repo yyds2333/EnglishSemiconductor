@@ -12,15 +12,20 @@ public partial class MainWindow : Window, IDisposable
 {
     private readonly IClipboardReader clipboardReader;
     private readonly IWordRepository wordRepository;
+    private readonly IDictionaryProvider dictionaryProvider;
     private readonly GlobalHotKeyService globalHotKeyService;
     private readonly DispatcherTimer undoTimer;
     private WordCaptureResult? lastCapture;
     private int undoSecondsRemaining;
 
-    public MainWindow(IClipboardReader clipboardReader, IWordRepository wordRepository)
+    public MainWindow(
+        IClipboardReader clipboardReader,
+        IWordRepository wordRepository,
+        IDictionaryProvider dictionaryProvider)
     {
         this.clipboardReader = clipboardReader ?? throw new ArgumentNullException(nameof(clipboardReader));
         this.wordRepository = wordRepository ?? throw new ArgumentNullException(nameof(wordRepository));
+        this.dictionaryProvider = dictionaryProvider ?? throw new ArgumentNullException(nameof(dictionaryProvider));
         InitializeComponent();
         globalHotKeyService = new GlobalHotKeyService(this, hotKeyId: 1001, HandleGlobalCapture);
         undoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -152,10 +157,15 @@ public partial class MainWindow : Window, IDisposable
         var result = await wordRepository.CaptureAsync(capture);
         if (result.RequiresSenseSelection)
         {
+            DefinitionTextBlock.Text = "本地释义：请先选择词义候选。";
             SetStatus($"发现 {result.Candidates.Count} 个同形词候选，请后续选择词义。", isSuccess: false);
             return;
         }
 
+        var dictionaryEntry = await dictionaryProvider.LookupAsync(result.Word.Term, result.Word.Language);
+        DefinitionTextBlock.Text = dictionaryEntry is null
+            ? "本地释义：未找到本地释义"
+            : FormatDictionaryEntry(dictionaryEntry);
         var action = result.IsNew ? "已记录" : "已更新遇见次数";
         lastCapture = result;
         undoSecondsRemaining = 5;
@@ -190,5 +200,16 @@ public partial class MainWindow : Window, IDisposable
         StatusTextBlock.Foreground = isSuccess
             ? System.Windows.Media.Brushes.SeaGreen
             : System.Windows.Media.Brushes.IndianRed;
+    }
+
+    private static string FormatDictionaryEntry(WordPin.Domain.DictionaryEntry entry)
+    {
+        var translation = string.IsNullOrWhiteSpace(entry.Translation) ? "暂无中文释义" : entry.Translation;
+        var definition = string.IsNullOrWhiteSpace(entry.Definition) ? null : entry.Definition;
+        var phonetic = string.IsNullOrWhiteSpace(entry.Phonetic) ? null : entry.Phonetic;
+        var details = string.Join(" · ", new[] { phonetic, entry.PartOfSpeech }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrWhiteSpace(definition)
+            ? $"本地释义：{translation}{(string.IsNullOrWhiteSpace(details) ? string.Empty : $" ({details})")}"
+            : $"本地释义：{translation}\n{definition}";
     }
 }
