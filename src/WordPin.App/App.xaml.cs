@@ -25,7 +25,8 @@ public partial class App : System.Windows.Application, IDisposable
         dictionaryStore.InitializeAsync().GetAwaiter().GetResult();
 
         var repository = new SqliteWordRepository(database);
-        var window = new MainWindow(new WpfClipboardReader(), repository, dictionaryStore);
+        var queueService = new SqliteStudyQueueService(database);
+        var window = new MainWindow(new WpfClipboardReader(), repository, dictionaryStore, queueService);
         MainWindow = window;
         window.Show();
     }

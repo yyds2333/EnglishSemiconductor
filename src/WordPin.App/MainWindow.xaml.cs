@@ -13,6 +13,7 @@ public partial class MainWindow : Window, IDisposable
     private readonly IClipboardReader clipboardReader;
     private readonly IWordRepository wordRepository;
     private readonly IDictionaryProvider dictionaryProvider;
+    private readonly IStudyQueueService studyQueueService;
     private readonly GlobalHotKeyService globalHotKeyService;
     private readonly DispatcherTimer undoTimer;
     private WordCaptureResult? lastCapture;
@@ -22,16 +23,19 @@ public partial class MainWindow : Window, IDisposable
     public MainWindow(
         IClipboardReader clipboardReader,
         IWordRepository wordRepository,
-        IDictionaryProvider dictionaryProvider)
+        IDictionaryProvider dictionaryProvider,
+        IStudyQueueService studyQueueService)
     {
         this.clipboardReader = clipboardReader ?? throw new ArgumentNullException(nameof(clipboardReader));
         this.wordRepository = wordRepository ?? throw new ArgumentNullException(nameof(wordRepository));
         this.dictionaryProvider = dictionaryProvider ?? throw new ArgumentNullException(nameof(dictionaryProvider));
+        this.studyQueueService = studyQueueService ?? throw new ArgumentNullException(nameof(studyQueueService));
         InitializeComponent();
         globalHotKeyService = new GlobalHotKeyService(this, hotKeyId: 1001, HandleGlobalCapture);
         undoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         undoTimer.Tick += UndoTimer_Tick;
         SourceInitialized += MainWindow_SourceInitialized;
+        Loaded += MainWindow_Loaded;
     }
 
     private async void ReadClipboardButton_Click(object sender, RoutedEventArgs e)
@@ -79,6 +83,20 @@ public partial class MainWindow : Window, IDisposable
         catch (InvalidOperationException exception)
         {
             SetStatus($"快捷键初始化失败：{exception.Message}", isSuccess: false);
+        }
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var localDate = DateTime.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var snapshot = await studyQueueService.GetOrCreateAsync(localDate, DateTimeOffset.UtcNow);
+            SetStatus($"今日队列 {snapshot.Items.Count} 个 · Ctrl+Shift+D 读取剪贴板", isSuccess: true);
+        }
+        catch (DbException exception)
+        {
+            SetStatus($"今日队列暂时不可用：{exception.Message}", isSuccess: false);
         }
     }
 
