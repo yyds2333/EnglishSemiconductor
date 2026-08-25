@@ -1,5 +1,5 @@
 #define MyAppName "WordPin"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "WordPin"
 #define MyAppExeName "WordPin.exe"
 
