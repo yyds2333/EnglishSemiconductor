@@ -259,12 +259,7 @@ public sealed class SqliteWordRepository : IWordRepository
         command.Parameters.AddWithValue("$definition_en", DbValue(draft.DefinitionEn));
         command.Parameters.AddWithValue("$example", DbValue(draft.Example));
         command.Parameters.AddWithValue("$sort_order", draft.SortOrder);
-        command.Parameters.AddWithValue("$provider", draft.SourceKind switch
-        {
-            DefinitionSourceKind.LanguageModel => "llm",
-            DefinitionSourceKind.TranslationApi => "translation",
-            _ => "manual"
-        });
+        command.Parameters.AddWithValue("$provider", draft.SourceKind == DefinitionSourceKind.LanguageModel ? "llm" : "manual");
         command.Parameters.AddWithValue("$source_kind", ToSourceKindValue(draft.SourceKind));
         command.Parameters.AddWithValue("$status", draft.Status.ToString().ToLowerInvariant());
         command.Parameters.AddWithValue("$source_detail", DbValue(draft.SourceDetail));
@@ -393,7 +388,6 @@ public sealed class SqliteWordRepository : IWordRepository
     private static DefinitionSourceKind ParseSourceKind(string value) => value.ToLowerInvariant() switch
     {
         "manual" => DefinitionSourceKind.Manual,
-        "translation" => DefinitionSourceKind.TranslationApi,
         "llm" => DefinitionSourceKind.LanguageModel,
         _ => throw new InvalidDataException($"Unsupported definition source: {value}")
     };
@@ -401,7 +395,6 @@ public sealed class SqliteWordRepository : IWordRepository
     private static string ToSourceKindValue(DefinitionSourceKind sourceKind) => sourceKind switch
     {
         DefinitionSourceKind.Manual => "manual",
-        DefinitionSourceKind.TranslationApi => "translation",
         DefinitionSourceKind.LanguageModel => "llm",
         _ => throw new ArgumentOutOfRangeException(nameof(sourceKind), sourceKind, "Unsupported definition source.")
     };

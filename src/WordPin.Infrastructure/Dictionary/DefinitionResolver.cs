@@ -8,35 +8,18 @@ public sealed class DefinitionResolver : IDefinitionResolver
 {
     private readonly IDefinitionRepository definitionRepository;
     private readonly IDictionaryProvider dictionaryProvider;
-    private readonly ITranslationDefinitionProvider translationProvider;
     private readonly ILanguageModelDefinitionProvider languageModelProvider;
-    private readonly IRemoteUsageStore usageStore;
+    private readonly ILlmUsageStore usageStore;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> termLocks = new(StringComparer.OrdinalIgnoreCase);
 
     public DefinitionResolver(
         IDefinitionRepository definitionRepository,
         IDictionaryProvider dictionaryProvider,
         ILanguageModelDefinitionProvider languageModelProvider,
-        IRemoteUsageStore usageStore)
-        : this(
-            definitionRepository,
-            dictionaryProvider,
-            new DisabledTranslationDefinitionProvider(),
-            languageModelProvider,
-            usageStore)
-    {
-    }
-
-    public DefinitionResolver(
-        IDefinitionRepository definitionRepository,
-        IDictionaryProvider dictionaryProvider,
-        ITranslationDefinitionProvider translationProvider,
-        ILanguageModelDefinitionProvider languageModelProvider,
-        IRemoteUsageStore usageStore)
+        ILlmUsageStore usageStore)
     {
         this.definitionRepository = definitionRepository ?? throw new ArgumentNullException(nameof(definitionRepository));
         this.dictionaryProvider = dictionaryProvider ?? throw new ArgumentNullException(nameof(dictionaryProvider));
-        this.translationProvider = translationProvider ?? throw new ArgumentNullException(nameof(translationProvider));
         this.languageModelProvider = languageModelProvider ?? throw new ArgumentNullException(nameof(languageModelProvider));
         this.usageStore = usageStore ?? throw new ArgumentNullException(nameof(usageStore));
     }
@@ -69,7 +52,7 @@ public sealed class DefinitionResolver : IDefinitionResolver
             return new DefinitionResolution(Array.Empty<SavedDefinition>(), local);
         }
 
-        if (!translationProvider.IsConfigured && !languageModelProvider.IsConfigured)
+        if (!languageModelProvider.IsConfigured)
         {
             return new DefinitionResolution(Array.Empty<SavedDefinition>(), null);
         }
@@ -98,44 +81,11 @@ public sealed class DefinitionResolver : IDefinitionResolver
                 return new DefinitionResolution(Array.Empty<SavedDefinition>(), local);
             }
 
-            var localDate = DateOnly.FromDateTime(DateTime.Now);
-            if (translationProvider.IsConfigured)
-            {
-                try
-                {
-                    if (await usageStore.TryConsumeAsync(
-                            "mymemory",
-                            localDate,
-                            translationProvider.DailyLimit,
-                            cancellationToken).ConfigureAwait(false))
-                    {
-                        var translation = await translationProvider.TranslateAsync(
-                            new DefinitionGenerationRequest(word.Term, word.Language),
-                            cancellationToken).ConfigureAwait(false);
-                        if (translation is not null)
-                        {
-                            return await SaveRemoteCandidateAsync(
-                                word,
-                                translation,
-                                DefinitionSourceKind.TranslationApi,
-                                cancellationToken).ConfigureAwait(false);
-                        }
-                    }
-                }
-                catch (Exception exception) when (exception is HttpRequestException or InvalidDataException
-                    or InvalidOperationException or TaskCanceledException)
-                {
-                    // The free translation service is best-effort. Continue to
-                    // the optional language-model fallback if configured.
-                }
-            }
-
-            if (!languageModelProvider.IsConfigured
-                || !await usageStore.TryConsumeAsync(
-                    "llm",
-                    localDate,
-                    languageModelProvider.DailyLimit,
-                    cancellationToken).ConfigureAwait(false))
+            var settings = languageModelProvider is OpenAiCompatibleDefinitionProvider openAi
+                ? openAi.Settings
+                : new LlmSettings(DailyLimit: 30);
+            if (!await usageStore.TryConsumeAsync(DateOnly.FromDateTime(DateTime.Now), settings.DailyLimit, cancellationToken)
+                    .ConfigureAwait(false))
             {
                 return new DefinitionResolution(Array.Empty<SavedDefinition>(), null);
             }
@@ -143,47 +93,25 @@ public sealed class DefinitionResolver : IDefinitionResolver
             var candidate = await languageModelProvider.GenerateAsync(
                 new DefinitionGenerationRequest(word.Term, word.Language, context),
                 cancellationToken).ConfigureAwait(false);
-            return await SaveRemoteCandidateAsync(
-                word,
-                candidate,
-                DefinitionSourceKind.LanguageModel,
+            var savedCandidate = await definitionRepository.SaveAsync(
+                new DefinitionDraft(
+                    WordId: word.Id,
+                    PartOfSpeech: candidate.PartOfSpeech,
+                    DefinitionZh: candidate.DefinitionZh,
+                    DefinitionEn: candidate.DefinitionEn,
+                    Example: candidate.Example,
+                    SourceKind: DefinitionSourceKind.LanguageModel,
+                    Status: DefinitionStatus.Proposed,
+                    SourceDetail: candidate.SourceDetail,
+                    ModelName: candidate.ModelName,
+                    PromptVersion: candidate.PromptVersion,
+                    GeneratedAt: DateTimeOffset.UtcNow),
                 cancellationToken).ConfigureAwait(false);
+            return new DefinitionResolution(new[] { savedCandidate }, null, IsRemoteCandidate: true);
         }
         finally
         {
             termLock.Release();
         }
-    }
-
-    private async Task<DefinitionResolution> SaveRemoteCandidateAsync(
-        WordRecord word,
-        GeneratedDefinitionCandidate candidate,
-        DefinitionSourceKind sourceKind,
-        CancellationToken cancellationToken)
-    {
-        var savedCandidate = await definitionRepository.SaveAsync(
-            new DefinitionDraft(
-                WordId: word.Id,
-                PartOfSpeech: candidate.PartOfSpeech,
-                DefinitionZh: candidate.DefinitionZh,
-                DefinitionEn: candidate.DefinitionEn,
-                Example: candidate.Example,
-                SourceKind: sourceKind,
-                Status: DefinitionStatus.Proposed,
-                SourceDetail: candidate.SourceDetail,
-                ModelName: candidate.ModelName,
-                PromptVersion: candidate.PromptVersion,
-                GeneratedAt: DateTimeOffset.UtcNow),
-            cancellationToken).ConfigureAwait(false);
-        return new DefinitionResolution(new[] { savedCandidate }, null, IsRemoteCandidate: true);
-    }
-
-    private sealed class DisabledTranslationDefinitionProvider : ITranslationDefinitionProvider
-    {
-        public bool IsConfigured => false;
-
-        public Task<GeneratedDefinitionCandidate?> TranslateAsync(
-            DefinitionGenerationRequest request,
-            CancellationToken cancellationToken = default) => Task.FromResult<GeneratedDefinitionCandidate?>(null);
     }
 }

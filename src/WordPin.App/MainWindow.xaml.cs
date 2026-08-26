@@ -90,9 +90,7 @@ public partial class MainWindow : Window, IDisposable
         if (dialog.ShowDialog() == true && dialog.Settings is not null)
         {
             llmSettingsStore.Save(dialog.Settings);
-            var onlineStatus = dialog.Settings.OnlineTranslationEnabled ? "联网翻译已启用" : "联网翻译已关闭";
-            var aiStatus = dialog.Settings.Enabled ? "AI 补全已启用" : "AI 补全已关闭";
-            SetStatus($"{onlineStatus}；{aiStatus}。", isSuccess: true);
+            SetStatus(dialog.Settings.Enabled ? "AI 释义补全已启用。" : "AI 释义补全已关闭。", isSuccess: true);
         }
     }
 
@@ -313,7 +311,7 @@ public partial class MainWindow : Window, IDisposable
         try
         {
             var candidate = (await definitionRepository.GetForWordAsync(currentWord.Id))
-                .FirstOrDefault(definition => IsRemoteSource(definition.SourceKind)
+                .FirstOrDefault(definition => definition.SourceKind == DefinitionSourceKind.LanguageModel
                     && definition.Status == DefinitionStatus.Proposed);
             if (candidate is null)
             {
@@ -327,7 +325,7 @@ public partial class MainWindow : Window, IDisposable
                 DefinitionEn: candidate.DefinitionEn,
                 Example: candidate.Example,
                 SortOrder: candidate.SortOrder,
-                SourceKind: candidate.SourceKind,
+                SourceKind: DefinitionSourceKind.LanguageModel,
                 Status: DefinitionStatus.Accepted,
                 SourceDetail: candidate.SourceDetail,
                 ModelName: candidate.ModelName,
@@ -336,13 +334,11 @@ public partial class MainWindow : Window, IDisposable
                 ConfirmedAt: DateTimeOffset.UtcNow,
                 ExistingId: candidate.Id));
             await RefreshDefinitionAsync(currentWord);
-            SetStatus(candidate.SourceKind == DefinitionSourceKind.TranslationApi
-                ? "已采用联网释义。"
-                : "已采用 AI 释义。", isSuccess: true);
+            SetStatus("已采用 AI 释义。", isSuccess: true);
         }
         catch (DbException exception)
         {
-            SetStatus($"采用远程释义失败：{exception.Message}", isSuccess: false);
+            SetStatus($"采用 AI 释义失败：{exception.Message}", isSuccess: false);
         }
     }
 
@@ -357,18 +353,18 @@ public partial class MainWindow : Window, IDisposable
         {
             var definitions = await definitionRepository.GetForWordAsync(currentWord.Id);
             foreach (var definition in definitions.Where(definition =>
-                         IsRemoteSource(definition.SourceKind)
+                         definition.SourceKind == DefinitionSourceKind.LanguageModel
                          && definition.Status == DefinitionStatus.Proposed))
             {
                 await definitionRepository.DeleteAsync(definition.Id);
             }
 
             await RefreshDefinitionAsync(currentWord);
-            SetStatus("已请求重新查询远程释义。", isSuccess: true);
+            SetStatus("已请求重新生成 AI 释义。", isSuccess: true);
         }
         catch (Exception exception) when (exception is DbException or InvalidOperationException or InvalidDataException or TaskCanceledException)
         {
-            SetStatus($"重新查询远程释义失败：{exception.Message}", isSuccess: false);
+            SetStatus($"重新生成 AI 释义失败：{exception.Message}", isSuccess: false);
         }
     }
 
@@ -431,23 +427,14 @@ public partial class MainWindow : Window, IDisposable
                 EditDefinitionButton.Visibility = Visibility.Visible;
                 RestoreDefinitionButton.Visibility = Visibility.Visible;
                 var isProposed = remotePreferred.Status == DefinitionStatus.Proposed
-                    && IsRemoteSource(remotePreferred.SourceKind);
+                    && remotePreferred.SourceKind == DefinitionSourceKind.LanguageModel;
                 AcceptAiButton.Visibility = isProposed ? Visibility.Visible : Visibility.Collapsed;
                 RetryAiButton.Visibility = isProposed ? Visibility.Visible : Visibility.Collapsed;
-                if (isProposed)
-                {
-                    AcceptAiButton.Content = remotePreferred.SourceKind == DefinitionSourceKind.TranslationApi
-                        ? "采用联网释义"
-                        : "采用 AI 释义";
-                    RetryAiButton.Content = remotePreferred.SourceKind == DefinitionSourceKind.TranslationApi
-                        ? "重新查询"
-                        : "重新生成";
-                }
                 return;
             }
 
             DefinitionTextBlock.Text = resolution.DictionaryEntry is null
-                ? "本地释义：未找到释义（可点击添加释义或配置联网释义）"
+                ? "本地释义：未找到释义（可点击添加释义或配置 AI 补全）"
                 : FormatDictionaryEntry(resolution.DictionaryEntry);
             EditDefinitionButton.Content = "添加释义";
             EditDefinitionButton.Visibility = Visibility.Visible;
@@ -457,7 +444,7 @@ public partial class MainWindow : Window, IDisposable
         }
         catch (Exception exception) when (exception is System.Net.Http.HttpRequestException or InvalidDataException or InvalidOperationException or TaskCanceledException)
         {
-            DefinitionTextBlock.Text = "本地释义：未找到；联网释义暂时不可用（可点击添加释义）";
+            DefinitionTextBlock.Text = "本地释义：未找到；AI 补全暂时不可用（可点击添加释义）";
             EditDefinitionButton.Content = "添加释义";
             EditDefinitionButton.Visibility = Visibility.Visible;
             RestoreDefinitionButton.Visibility = Visibility.Collapsed;
@@ -493,16 +480,9 @@ public partial class MainWindow : Window, IDisposable
 
     private static string FormatSavedDefinition(SavedDefinition definition)
     {
-        var source = definition.SourceKind switch
-        {
-            DefinitionSourceKind.LanguageModel => definition.Status == DefinitionStatus.Proposed
-                ? "AI 生成 · 未确认"
-                : "AI 已确认",
-            DefinitionSourceKind.TranslationApi => definition.Status == DefinitionStatus.Proposed
-                ? "联网翻译 · 未确认"
-                : "联网翻译 · 已确认",
-            _ => "用户编辑"
-        };
+        var source = definition.SourceKind == DefinitionSourceKind.LanguageModel
+            ? definition.Status == DefinitionStatus.Proposed ? "AI 生成 · 未确认" : "AI 已确认"
+            : "用户编辑";
         var parts = new List<string> { $"{source}：" };
         if (!string.IsNullOrWhiteSpace(definition.DefinitionZh))
         {
@@ -526,7 +506,4 @@ public partial class MainWindow : Window, IDisposable
 
         return string.Concat(parts);
     }
-
-    private static bool IsRemoteSource(DefinitionSourceKind sourceKind) =>
-        sourceKind is DefinitionSourceKind.TranslationApi or DefinitionSourceKind.LanguageModel;
 }

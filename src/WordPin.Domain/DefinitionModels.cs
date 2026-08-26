@@ -3,7 +3,6 @@ namespace WordPin.Domain;
 public enum DefinitionSourceKind
 {
     Manual,
-    TranslationApi,
     LanguageModel
 }
 

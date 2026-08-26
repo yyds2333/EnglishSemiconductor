@@ -9,12 +9,7 @@ public sealed record LlmSettings(
     string? ApiKey = null,
     int DailyLimit = 30,
     bool SendContext = false,
-    int TimeoutSeconds = 15,
-    bool OnlineTranslationEnabled = true,
-    bool OnlineMachineTranslationEnabled = false,
-    string OnlineTranslationBaseUrl = "https://api.mymemory.translated.net",
-    int OnlineTranslationDailyLimit = 60,
-    int OnlineTranslationTimeoutSeconds = 10);
+    int TimeoutSeconds = 15);
 
 public sealed record DefinitionGenerationRequest(
     string Term,
@@ -37,20 +32,7 @@ public interface ILanguageModelDefinitionProvider
 {
     bool IsConfigured { get; }
 
-    int DailyLimit => 30;
-
     Task<GeneratedDefinitionCandidate> GenerateAsync(
-        DefinitionGenerationRequest request,
-        CancellationToken cancellationToken = default);
-}
-
-public interface ITranslationDefinitionProvider
-{
-    bool IsConfigured { get; }
-
-    int DailyLimit => 60;
-
-    Task<GeneratedDefinitionCandidate?> TranslateAsync(
         DefinitionGenerationRequest request,
         CancellationToken cancellationToken = default);
 }
@@ -73,15 +55,6 @@ public interface ILlmSettingsStore
 public interface ILlmUsageStore
 {
     Task<bool> TryConsumeAsync(
-        DateOnly localDate,
-        int dailyLimit,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IRemoteUsageStore
-{
-    Task<bool> TryConsumeAsync(
-        string provider,
         DateOnly localDate,
         int dailyLimit,
         CancellationToken cancellationToken = default);

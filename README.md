@@ -4,7 +4,7 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 
 ## 当前阶段
 
-项目已完成 **v0.3.0：免费联网翻译回退** 发布。
+项目已完成 **v0.2.0：本地释义管理与 AI 释义补全** 发布。
 
 ## 平台基线
 
@@ -57,11 +57,11 @@ WordPin 是一个面向 Windows 11 x64 的桌面单词收集与复习工具。�
 
 运行 `artifacts\publish\win-x64\WordPin.exe` 或安装包中的 WordPin。当前窗口始终置顶，支持 `Ctrl+Shift+D`（先复制、后按快捷键）主动读取剪贴板，或手动输入并立即保存到 `%LOCALAPPDATA%\WordPin\wordpin.db`；应用不会持续监听剪贴板。每次保存后提供 5 秒撤销。
 
-主窗口支持“导入 CSV 词典”和“释义设置”。本地释义缺失时，默认先查询免费的 MyMemory 联网翻译记忆库，只发送当前单词或短语；结果会显示为“联网翻译 · 未确认”，点击“采用联网释义”后才保存。可在设置中关闭联网翻译、允许机器翻译回退，或启用 AI 补全。AI Key 使用 Windows 当前用户 DPAPI 加密保存，不写入 SQLite 或日志。
+主窗口支持“导入 CSV 词典”和“AI 设置”。本地释义缺失时，如果已配置并启用 AI 补全，应用会异步生成带“AI 生成 · 未确认”标记的候选；点击“编辑并采用”后才保存为用户释义。AI Key 使用 Windows 当前用户 DPAPI 加密保存，不写入 SQLite 或日志。
 
-v0.3.0 安装包：`artifacts\\installer\\WordPin-0.3.0-win-x64-setup.exe`。发布包未配置代码签名证书，下载后请按发布页提供的 SHA-256 校验文件完整性。
+v0.2.0 安装包：`artifacts\\installer\\WordPin-0.2.0-win-x64-setup.exe`。发布包未配置代码签名证书，下载后请按同目录 SHA-256 校验文件完整性。
 
-AI 设置使用 OpenAI 兼容的 `/chat/completions` 接口，Base URL 必须为 HTTPS，默认每日最多请求 30 次。联网翻译默认每日最多请求 60 次，同一个单词的未确认候选会缓存 24 小时；网络失败不会阻止收词和复习。
+AI 设置使用 OpenAI 兼容的 `/chat/completions` 接口，Base URL 必须为 HTTPS，默认每日最多请求 30 次。同一个单词的未确认候选会缓存 24 小时；网络失败不会阻止收词和复习。
 
 用户释义保存在 `%LOCALAPPDATA%\WordPin\wordpin.db`，可通过“编辑释义”修改或通过“恢复本地释义”删除用户覆盖。词典导入会先写入 staging 数据库，成功后备份并替换 `%LOCALAPPDATA%\WordPin\dictionary\dictionary.db`。
 

@@ -73,40 +73,6 @@ public sealed class SqliteDefinitionTests
         }
     }
 
-    [Fact]
-    public async Task ResolverUsesFreeTranslationBeforeLanguageModel()
-    {
-        var databasePath = CreateDatabasePath("translation-resolver");
-        var dictionaryPath = Path.Combine(Path.GetTempPath(), $"wordpin-dictionary-{Guid.NewGuid():N}.db");
-        try
-        {
-            await using var database = new SqliteLearningDatabase(databasePath);
-            await using var dictionary = new SqliteDictionaryStore(dictionaryPath);
-            var repository = new SqliteWordRepository(database);
-            var captured = await repository.CaptureAsync(new NewWordCapture("microchip"));
-            var translation = new FakeTranslationProvider();
-            var model = new FakeLanguageModelProvider { Enabled = false };
-            var resolver = new DefinitionResolver(
-                repository,
-                dictionary,
-                translation,
-                model,
-                new SqliteLlmUsageStore(database));
-
-            var result = await resolver.ResolveAsync(captured.Word);
-
-            Assert.True(result.IsRemoteCandidate);
-            Assert.Equal(DefinitionSourceKind.TranslationApi, result.Definitions[0].SourceKind);
-            Assert.Equal(1, translation.CallCount);
-            Assert.Equal(0, model.CallCount);
-        }
-        finally
-        {
-            DeleteDatabaseFiles(databasePath);
-            DeleteDatabaseFiles(dictionaryPath);
-        }
-    }
-
     private static string CreateDatabasePath(string suffix) =>
         Path.Combine(Path.GetTempPath(), $"wordpin-{suffix}-{Guid.NewGuid():N}.db");
 
@@ -125,9 +91,7 @@ public sealed class SqliteDefinitionTests
     {
         public int CallCount { get; private set; }
 
-        public bool Enabled { get; init; } = true;
-
-        public bool IsConfigured => Enabled;
+        public bool IsConfigured => true;
 
         public Task<GeneratedDefinitionCandidate> GenerateAsync(
             DefinitionGenerationRequest request,
@@ -143,30 +107,6 @@ public sealed class SqliteDefinitionTests
                 Example: null,
                 ProviderId: "fake",
                 ModelName: "fake-model",
-                PromptVersion: "test-v1"));
-        }
-    }
-
-    private sealed class FakeTranslationProvider : ITranslationDefinitionProvider
-    {
-        public int CallCount { get; private set; }
-
-        public bool IsConfigured => true;
-
-        public Task<GeneratedDefinitionCandidate?> TranslateAsync(
-            DefinitionGenerationRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            CallCount++;
-            return Task.FromResult<GeneratedDefinitionCandidate?>(new GeneratedDefinitionCandidate(
-                Term: request.Term,
-                Phonetic: null,
-                PartOfSpeech: null,
-                DefinitionZh: "微型芯片",
-                DefinitionEn: request.Term,
-                Example: null,
-                ProviderId: "fake-translation",
-                ModelName: "fake-memory",
                 PromptVersion: "test-v1"));
         }
     }

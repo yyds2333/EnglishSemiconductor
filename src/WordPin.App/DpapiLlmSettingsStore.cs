@@ -7,8 +7,8 @@ using WordPin.Application;
 namespace WordPin.App;
 
 /// <summary>
-/// Stores non-secret remote lookup settings as JSON and protects the AI key
-/// with the current Windows user's DPAPI profile.
+/// Stores non-secret AI settings as JSON and protects the API key with the
+/// current Windows user's DPAPI profile.
 /// </summary>
 public sealed class DpapiLlmSettingsStore : ILlmSettingsStore
 {
@@ -44,12 +44,7 @@ public sealed class DpapiLlmSettingsStore : ILlmSettingsStore
                 ApiKey: Unprotect(persisted.ApiKeyProtected),
                 DailyLimit: Math.Clamp(persisted.DailyLimit, 1, 500),
                 SendContext: persisted.SendContext,
-                TimeoutSeconds: Math.Clamp(persisted.TimeoutSeconds == 0 ? 15 : persisted.TimeoutSeconds, 5, 60),
-                OnlineTranslationEnabled: persisted.OnlineTranslationEnabled ?? true,
-                OnlineMachineTranslationEnabled: persisted.OnlineMachineTranslationEnabled ?? false,
-                OnlineTranslationBaseUrl: persisted.OnlineTranslationBaseUrl ?? "https://api.mymemory.translated.net",
-                OnlineTranslationDailyLimit: Math.Clamp(persisted.OnlineTranslationDailyLimit ?? 60, 1, 500),
-                OnlineTranslationTimeoutSeconds: Math.Clamp(persisted.OnlineTranslationTimeoutSeconds ?? 10, 5, 60));
+                TimeoutSeconds: Math.Clamp(persisted.TimeoutSeconds == 0 ? 15 : persisted.TimeoutSeconds, 5, 60));
         }
         catch (Exception) when (File.Exists(settingsPath))
         {
@@ -70,11 +65,6 @@ public sealed class DpapiLlmSettingsStore : ILlmSettingsStore
             DailyLimit: Math.Clamp(settings.DailyLimit, 1, 500),
             SendContext: settings.SendContext,
             TimeoutSeconds: Math.Clamp(settings.TimeoutSeconds, 5, 60),
-            OnlineTranslationEnabled: settings.OnlineTranslationEnabled,
-            OnlineMachineTranslationEnabled: settings.OnlineMachineTranslationEnabled,
-            OnlineTranslationBaseUrl: settings.OnlineTranslationBaseUrl.Trim(),
-            OnlineTranslationDailyLimit: Math.Clamp(settings.OnlineTranslationDailyLimit, 1, 500),
-            OnlineTranslationTimeoutSeconds: Math.Clamp(settings.OnlineTranslationTimeoutSeconds, 5, 60),
             ApiKeyProtected: Protect(settings.ApiKey));
         var tempPath = settingsPath + ".tmp";
         File.WriteAllText(tempPath, JsonSerializer.Serialize(persisted, JsonOptions));
@@ -116,10 +106,5 @@ public sealed class DpapiLlmSettingsStore : ILlmSettingsStore
         int DailyLimit,
         bool SendContext,
         int TimeoutSeconds,
-        bool? OnlineTranslationEnabled,
-        bool? OnlineMachineTranslationEnabled,
-        string? OnlineTranslationBaseUrl,
-        int? OnlineTranslationDailyLimit,
-        int? OnlineTranslationTimeoutSeconds,
         string? ApiKeyProtected);
 }
